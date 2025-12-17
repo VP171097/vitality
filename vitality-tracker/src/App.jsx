@@ -6,7 +6,9 @@ import {
 import { 
   Activity, Droplets, Calendar, Save, TrendingDown, 
   Award, Zap, UtensilsCrossed, CheckCircle, PlusCircle, Flame, Target, Trash2, 
-  Sparkles, MessageSquare, Loader2, Info, Heart, Settings, User, LogOut, Lock, Mail
+  Sparkles, MessageSquare, Loader2, Info, Heart, Settings, User, LogOut, Lock, Mail,
+  Phone,
+  MailIcon
 } from 'lucide-react';
 import { initializeApp } from "firebase/app";
 import { 
@@ -747,7 +749,15 @@ export default function App() {
                 <h3 className="text-white font-bold text-lg mb-2 flex items-center gap-2"><Heart className="text-emerald-500" size={20}/> About {APP_NAME}</h3>
                 <p className="text-slate-400 text-sm leading-relaxed max-w-sm">The all-in-one AI fitness companion. Track meals, log workouts, and get intelligent coaching insights.</p>
               </div>
-              <div className="flex flex-col md:items-end text-slate-500 text-sm"><p className="mb-1">© 2025 {APP_NAME} Project</p><p>Built by <span className="text-slate-200 font-medium">{settings.name}</span></p></div>
+              <div>
+                <h3 className="text-white font-bold text-lg mb-2 flex items-center gap-2"><Phone className="text-emerald-500" size={20}/> Contact {APP_NAME}</h3>
+                <p className="text-slate-400 text-sm leading-relaxed max-w-sm">+91-9990091677</p>
+              </div>
+              <div>
+                <h3 className="text-white font-bold text-lg mb-2 flex items-center gap-2"><MailIcon className="text-emerald-500" size={20}/> Mail {APP_NAME}</h3>
+                <p className="text-slate-400 text-sm leading-relaxed max-w-sm">pandey.vivek7011@gmail.com</p>
+              </div>
+              <div className="flex flex-col md:items-end text-slate-500 text-sm"><p className="mb-1">© 2025 {APP_NAME} Project</p><p>Built by Vivek Pandey</p></div>
             </div>
          </div>
       </footer>
