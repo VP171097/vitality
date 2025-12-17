@@ -47,7 +47,7 @@ const DEFAULT_SETTINGS = {
   gender: 'male'
 };
 
-const apiKey = ""; // API Key injected at runtime
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY; // API Key injected at runtime
 
 // Helper to get local date string YYYY-MM-DD
 const getToday = () => new Date().toLocaleDateString('en-CA');
