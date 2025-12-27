@@ -452,9 +452,24 @@ export default function App() {
       showNotification("Google API not loaded yet. Wait a moment.");
       return;
     }
+
+    // Check if Client ID is configured
+    const CLIENT_ID = import.meta.env.YOUR_GOOGLE_CLIENT_ID; // Replace with valid client ID in production or use import.meta.env.VITE_GOOGLE_CLIENT_ID
+
+    if (CLIENT_ID === import.meta.env.YOUR_GOOGLE_CLIENT_ID) {
+      // If no valid ID is present, ask user if they want to simulate or warn them
+      if (confirm("Google Client ID is missing in code. Do you want to simulate a connection with mock data?")) {
+        console.log("Simulating Google Fit Connection...");
+        setIsGoogleFitConnected(true);
+        const mockSteps = Math.floor(Math.random() * 5000) + 3000;
+        setSteps(mockSteps);
+        showNotification("Connected to Google Fit (Simulated)");
+      }
+      return;
+    }
     try {
       const client = google.accounts.oauth2.initTokenClient({
-        client_id: import.meta.env.YOUR_GOOGLE_CLIENT_ID, // Replace with valid client ID in production
+        client_id: CLIENT_ID,
         scope: 'https://www.googleapis.com/auth/fitness.activity.read',
         callback: (tokenResponse) => {
           if (tokenResponse && tokenResponse.access_token) {
@@ -463,17 +478,13 @@ export default function App() {
           }
         },
       });
-      // Mock for testing
-      console.log("Simulating Google Fit Connection...");
-      setIsGoogleFitConnected(true);
-      const mockSteps = Math.floor(Math.random() * 5000) + 3000;
-      setSteps(mockSteps);
-      showNotification("Connected to Google Fit (Simulated)");
+      
+      // Trigger the actual Google Login Popup
+      client.requestAccessToken();
+      
     } catch (e) {
       console.warn("Google Auth Error:", e);
-      setIsGoogleFitConnected(true);
-      setSteps(4500);
-      showNotification("Simulated Google Fit Connection");
+      showNotification("Google Auth Failed");
     }
   };
 
