@@ -456,17 +456,17 @@ export default function App() {
     // Check if Client ID is configured
     const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-    if (!CLIENT_ID || CLIENT_ID === '128967206136-00k340iuv0c1fuah3bqbke8ukf19isoj.apps.googleusercontent.com') {
-      // If no valid ID is present, ask user if they want to simulate or warn them
-      if (confirm("Google Client ID is missing in code. Do you want to simulate a connection with mock data?")) {
-        console.log("Simulating Google Fit Connection...");
-        setIsGoogleFitConnected(true);
-        const mockSteps = Math.floor(Math.random() * 5000) + 3000;
-        setSteps(mockSteps);
-        showNotification("Connected to Google Fit (Simulated)");
-      }
-      return;
-    }
+    // if (!CLIENT_ID || CLIENT_ID === '128967206136-00k340iuv0c1fuah3bqbke8ukf19isoj.apps.googleusercontent.com') {
+    //   // If no valid ID is present, ask user if they want to simulate or warn them
+    //   if (confirm("Google Client ID is missing in code. Do you want to simulate a connection with mock data?")) {
+    //     console.log("Simulating Google Fit Connection...");
+    //     setIsGoogleFitConnected(true);
+    //     const mockSteps = Math.floor(Math.random() * 5000) + 3000;
+    //     setSteps(mockSteps);
+    //     showNotification("Connected to Google Fit (Simulated)");
+    //   }
+    //   return;
+    // }
     try {
       const client = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
