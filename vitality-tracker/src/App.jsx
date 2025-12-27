@@ -7,8 +7,7 @@ import {
   Activity, Droplets, Calendar, Save, TrendingDown, 
   Award, Zap, UtensilsCrossed, CheckCircle, PlusCircle, Flame, Target, Trash2, 
   Sparkles, MessageSquare, Loader2, Info, Heart, Settings, User, LogOut, Lock, Mail,
-  Phone,
-  MailIcon
+  Dumbbell, Timer, Move, Footprints, Smartphone
 } from 'lucide-react';
 import { initializeApp } from "firebase/app";
 import { 
@@ -83,7 +82,7 @@ async function callGemini(prompt, systemInstruction = "") {
   }
 }
 
-// --- AUTH COMPONENT ---
+// --- AUTH COMPONENT (Commented out usage below) ---
 function AuthScreen({ onLogin }) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
@@ -201,8 +200,9 @@ function AuthScreen({ onLogin }) {
 
 // --- MAIN APP COMPONENT ---
 export default function App() {
-  const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  // --- TESTING MODE: HARDCODED USER ---
+  const [user, setUser] = useState({ uid: 'test-user', displayName: 'Test User' });
+  const [authLoading, setAuthLoading] = useState(false);
   
   const [activeTab, setActiveTab] = useState('dashboard');
   const [notification, setNotification] = useState(null);
@@ -216,12 +216,19 @@ export default function App() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [logs, setLogs] = useState([]);
   const [foodLogs, setFoodLogs] = useState({});
+  const [activityLogs, setActivityLogs] = useState({}); 
   const [dataLoading, setDataLoading] = useState(false);
+
+  // Google Fit States
+  const [steps, setSteps] = useState(0);
+  const [googleCalories, setGoogleCalories] = useState(0);
+  const [isGoogleFitConnected, setIsGoogleFitConnected] = useState(false);
 
   const [todayLog, setTodayLog] = useState({
     weight: '', water: 0, workout: false, noSugar: false, lowSalt: false, vacuums: false
   });
   const [newFood, setNewFood] = useState({ name: '', cals: '', protein: '' });
+  const [newActivity, setNewActivity] = useState({ description: '', duration: '' });
 
   const quickFoods = [
     { name: "3 Boiled Eggs (1 Yolk)", cals: 155, protein: 13 },
@@ -234,63 +241,54 @@ export default function App() {
     { name: "Clear Soup (Veg/Chicken)", cals: 60, protein: 4 },
   ];
 
-  // --- AUTH LISTENER ---
+  // --- GOOGLE FIT SCRIPT LOADER ---
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    document.body.appendChild(script);
+    return () => {
+      document.body.removeChild(script);
+    }
+  }, []);
+
+  // --- AUTH LISTENER (DISABLED FOR TESTING) ---
+  /*
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
-      if (currentUser) {
-        // Initialize listener for user data
-        const userRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'config');
-        // We will fetch inside a separate effect dependent on 'user'
-      }
     });
     return () => unsubscribe();
   }, []);
+  */
 
-  // --- DATA SYNC ---
+  // --- DATA SYNC (LOCAL STORAGE MODE FOR TESTING) ---
   useEffect(() => {
     if (!user) return;
     setDataLoading(true);
 
-    // 1. Settings Listener
-    const settingsUnsub = onSnapshot(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'config'), (docSnap) => {
-      if (docSnap.exists()) {
-        setSettings(docSnap.data());
-      } else {
-        // Create default settings if new user
-        const newDefaults = { ...DEFAULT_SETTINGS, name: user.displayName || "New User" };
-        setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'config'), newDefaults);
-        setSettings(newDefaults);
-      }
-    });
+    const savedSettings = localStorage.getItem('vitality_settings');
+    if (savedSettings) setSettings(JSON.parse(savedSettings));
 
-    // 2. Logs Listener (Using a single doc for simplicity in this artifact, could be a collection in prod)
-    const logsUnsub = onSnapshot(doc(db, 'artifacts', appId, 'users', user.uid, 'logs', 'history'), (docSnap) => {
-      if (docSnap.exists()) {
-        setLogs(docSnap.data().data || []);
-      } else {
-        setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'logs', 'history'), { data: [] });
-        setLogs([]);
-      }
-    });
+    const savedLogs = localStorage.getItem('jan20_fitness_logs');
+    if (savedLogs) setLogs(JSON.parse(savedLogs));
 
-    // 3. Food Listener
-    const foodUnsub = onSnapshot(doc(db, 'artifacts', appId, 'users', user.uid, 'food', 'history'), (docSnap) => {
-      if (docSnap.exists()) {
-        setFoodLogs(docSnap.data().data || {});
-      } else {
-        setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'food', 'history'), { data: {} });
-        setFoodLogs({});
-      }
-      setDataLoading(false);
-    });
+    const savedFood = localStorage.getItem('jan20_food_logs');
+    if (savedFood) setFoodLogs(JSON.parse(savedFood));
 
-    return () => {
-      settingsUnsub();
-      logsUnsub();
-      foodUnsub();
-    };
+    const savedActivity = localStorage.getItem('jan20_activity_logs');
+    if (savedActivity) setActivityLogs(JSON.parse(savedActivity));
+
+    // Google Fit Mock Data for demo if no connection
+    const savedSteps = localStorage.getItem('vitality_steps');
+    if (savedSteps) {
+      setSteps(parseInt(savedSteps));
+      setIsGoogleFitConnected(true);
+    }
+
+    setDataLoading(false);
   }, [user]);
 
   // --- LOCAL STATE UPDATE FOR TODAY ---
@@ -313,20 +311,21 @@ export default function App() {
   }, [logs, settings.startWeight]);
 
 
-  // --- FIRESTORE HELPERS ---
+  // --- DATA HELPERS (LOCAL STORAGE MODE) ---
   const saveLogsToFirestore = async (newLogs) => {
-    if (!user) return;
-    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'logs', 'history'), { data: newLogs }, { merge: true });
+    localStorage.setItem('jan20_fitness_logs', JSON.stringify(newLogs));
   };
 
   const saveFoodToFirestore = async (newFoodLogs) => {
-    if (!user) return;
-    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'food', 'history'), { data: newFoodLogs }, { merge: true });
+    localStorage.setItem('jan20_food_logs', JSON.stringify(newFoodLogs));
+  };
+  
+  const saveActivityToFirestore = async (newActivityLogs) => {
+    localStorage.setItem('jan20_activity_logs', JSON.stringify(newActivityLogs));
   };
 
   const saveSettingsToFirestore = async (newSettings) => {
-    if (!user) return;
-    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'config'), newSettings, { merge: true });
+    localStorage.setItem('vitality_settings', JSON.stringify(newSettings));
   };
 
 
@@ -342,8 +341,6 @@ export default function App() {
     const weightVal = parseFloat(todayLog.weight) || (newLogs.length > 0 ? newLogs[newLogs.length-1].weight : settings.startWeight);
     const newEntry = { ...todayLog, date: today, weight: weightVal };
     const sortedLogs = [...newLogs, newEntry].sort((a, b) => new Date(a.date) - new Date(b.date));
-    
-    // Optimistic Update
     setLogs(sortedLogs); 
     saveLogsToFirestore(sortedLogs);
     showNotification("Daily log saved!");
@@ -361,7 +358,6 @@ export default function App() {
       height: parseFloat(formData.get('height')),
       age: parseFloat(formData.get('age')),
     };
-    // Optimistic Update
     setSettings(newSettings);
     saveSettingsToFirestore(newSettings);
     showNotification("Settings updated!");
@@ -372,7 +368,6 @@ export default function App() {
     const today = getToday();
     const currentFoods = foodLogs[today] || [];
     let foodToAdd = item;
-    
     if (!item) {
       if (!newFood.name || !newFood.cals) return;
       foodToAdd = { 
@@ -385,7 +380,6 @@ export default function App() {
     } else {
       foodToAdd = { ...item, id: Date.now() };
     }
-
     const newFoodLogs = { ...foodLogs, [today]: [...currentFoods, foodToAdd] };
     setFoodLogs(newFoodLogs);
     saveFoodToFirestore(newFoodLogs);
@@ -399,11 +393,99 @@ export default function App() {
     setFoodLogs(newFoodLogs);
     saveFoodToFirestore(newFoodLogs);
   };
+  
+  const addActivity = (item) => {
+    const today = getToday();
+    const currentActivities = activityLogs[today] || [];
+    const newActivityLogs = { ...activityLogs, [today]: [...currentActivities, { ...item, id: Date.now() }] };
+    setActivityLogs(newActivityLogs);
+    saveActivityToFirestore(newActivityLogs);
+    showNotification(`Logged ${item.name}`);
+  };
+  
+  const removeActivity = (id) => {
+    const today = getToday();
+    const currentActivities = activityLogs[today] || [];
+    const newActivityLogs = { ...activityLogs, [today]: currentActivities.filter(a => a.id !== id) };
+    setActivityLogs(newActivityLogs);
+    saveActivityToFirestore(newActivityLogs);
+  };
+
+  // --- GOOGLE FIT INTEGRATION HANDLERS ---
+  const handleGoogleConnect = () => {
+    // NOTE: This usually requires a Google Client ID and specific origin setup.
+    // For this DEMO/TESTING environment, we will SIMULATE a connection.
+    if (typeof google === 'undefined') {
+      showNotification("Google API not loaded yet. Wait a moment.");
+      return;
+    }
+
+    try {
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: import.meta.env.YOUR_GOOGLE_CLIENT_ID, // User must replace this in production
+        scope: 'https://www.googleapis.com/auth/fitness.activity.read',
+        callback: (tokenResponse) => {
+          if (tokenResponse && tokenResponse.access_token) {
+            setIsGoogleFitConnected(true);
+            fetchFitData(tokenResponse.access_token);
+          }
+        },
+      });
+      // In production you would call: client.requestAccessToken();
+      
+      // MOCK FOR DEMO:
+      console.log("Simulating Google Fit Connection...");
+      setIsGoogleFitConnected(true);
+      const mockSteps = Math.floor(Math.random() * 5000) + 3000;
+      setSteps(mockSteps);
+      localStorage.setItem('vitality_steps', mockSteps.toString());
+      showNotification("Connected to Google Fit!");
+      
+    } catch (e) {
+      console.warn("Google Auth Error (Expected in demo without valid Client ID):", e);
+      // Fallback Mock
+      setIsGoogleFitConnected(true);
+      const mockSteps = Math.floor(Math.random() * 5000) + 3000;
+      setSteps(mockSteps);
+      showNotification("Simulated Google Fit Connection");
+    }
+  };
+
+  const fetchFitData = async (accessToken) => {
+    // This is the logic you would use with a real token
+    const end = new Date().getTime();
+    const start = new Date().setHours(0,0,0,0);
+    
+    try {
+      const response = await fetch("https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          "aggregateBy": [{
+            "dataTypeName": "com.google.step_count.delta",
+            "dataSourceId": "derived:com.google.step_count.delta:com.google.android.gms:estimated_steps"
+          }],
+          "bucketByTime": { "durationMillis": 86400000 },
+          "startTimeMillis": start,
+          "endTimeMillis": end
+        })
+      });
+      const data = await response.json();
+      // Parse steps from data...
+      console.log("Google Fit Data:", data);
+    } catch (e) {
+      console.error("Error fetching Google Fit data", e);
+    }
+  };
 
   const handleSignOut = async () => {
-     await signOut(auth);
-     setLogs([]);
-     setFoodLogs({});
+     if(confirm("This will clear local test data. Continue?")) {
+        localStorage.clear();
+        window.location.reload();
+     }
   };
 
   // --- CALCULATIONS ---
@@ -420,8 +502,11 @@ export default function App() {
   const daysRemaining = Math.max(0, Math.ceil((new Date(settings.endDate) - new Date()) / (1000 * 60 * 60 * 24)));
   
   const todayFoods = foodLogs[getToday()] || [];
+  const todayActivities = activityLogs[getToday()] || [];
+  
   const todayCalories = todayFoods.reduce((sum, f) => sum + f.cals, 0);
   const todayProtein = todayFoods.reduce((sum, f) => sum + f.protein, 0);
+  const todayBurned = todayActivities.reduce((sum, a) => sum + a.calories, 0);
 
   // --- GEMINI FUNCTIONS ---
   const handleAiFoodAdd = async () => {
@@ -444,6 +529,27 @@ export default function App() {
       setAiLoading(false);
     }
   };
+  
+  const handleAiActivityAdd = async () => {
+    if (!newActivity.description || !newActivity.duration) return;
+    setAiLoading(true);
+    try {
+      const prompt = `User weighing ${currentWeight}kg performed: "${newActivity.description}" for ${newActivity.duration} minutes. Estimate calories burned.`;
+      const systemPrompt = `You are a sports scientist. Return a JSON object with keys: "name" (standardized activity name string), "calories" (integer estimated burned). Return ONLY JSON.`;
+      const result = await callGemini(prompt, systemPrompt);
+      if (result && result.name) {
+        addActivity(result);
+        setNewActivity({ description: '', duration: '' });
+      } else {
+        showNotification("Could not calculate activity. Try again.");
+      }
+    } catch (error) {
+       console.error(error);
+       showNotification("AI Error. Check connection.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   const handleAiCoach = async () => {
     setAiLoading(true);
@@ -457,7 +563,9 @@ export default function App() {
         totalLost,
         recentHabits: recentLogs.map(l => ({ date: l.date, noSugar: l.noSugar, lowSalt: l.lowSalt })),
         todayCals: todayCalories,
-        targetCals: dailyCalorieGoal
+        todayBurned: todayBurned,
+        targetCals: dailyCalorieGoal,
+        steps: steps // Pass steps to Coach Gemini
       };
       const prompt = `User Stats: ${JSON.stringify(stats)}. User Goal: Lose weight by ${settings.endDate} (Target ${settings.goalWeight}kg). Current Dynamic Calorie Goal: ${dailyCalorieGoal}`;
       const systemPrompt = `You are Coach Gemini. Analyze JSON data. Provide JSON object with one field "message" containing short, punchy advice (max 2 sentences).`;
@@ -480,7 +588,9 @@ export default function App() {
       const dateStr = currDate.toLocaleDateString('en-CA');
       const log = logs.find(l => l.date === dateStr);
       const foods = foodLogs[dateStr] || [];
+      const activities = activityLogs[dateStr] || [];
       const cals = foods.reduce((sum, f) => sum + f.cals, 0);
+      const burned = activities.reduce((sum, a) => sum + a.calories, 0);
       const totalDays = Math.max(1, (lastDate - new Date(settings.startDate)) / (1000 * 60 * 60 * 24));
       const daysPassed = (currDate - new Date(settings.startDate)) / (1000 * 60 * 60 * 24);
       const idealWeight = settings.startWeight - ((settings.startWeight - settings.goalWeight) * (daysPassed / totalDays));
@@ -489,12 +599,13 @@ export default function App() {
         actualWeight: log ? log.weight : null,
         idealWeight: parseFloat(idealWeight.toFixed(1)),
         calories: cals,
+        burned: burned,
         habitScore: log ? ((log.workout?25:0) + (log.noSugar?25:0) + (log.lowSalt?25:0) + (log.vacuums?25:0)) : 0
       });
       currDate.setDate(currDate.getDate() + 1);
     }
     return data;
-  }, [logs, foodLogs, settings]);
+  }, [logs, foodLogs, activityLogs, settings]);
 
   const calorieData = [
     { name: 'Consumed', value: todayCalories, color: '#10b981' },
@@ -546,7 +657,7 @@ export default function App() {
       <main className="max-w-4xl mx-auto p-4 md:p-6 space-y-6 flex-grow w-full">
         {/* TAB NAV */}
         <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800 shadow-sm overflow-x-auto">
-          {['dashboard', 'tracker', 'food', 'analytics', 'settings'].map(tab => (
+          {['dashboard', 'tracker', 'food', 'activity', 'analytics', 'settings'].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -582,12 +693,12 @@ export default function App() {
                 <h3 className="text-3xl font-bold text-white mt-1">{totalLost}<span className="text-sm text-emerald-500 ml-1">kg</span></h3>
               </div>
               <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
-                <p className="text-slate-400 text-[10px] uppercase font-bold tracking-widest">Calories Today</p>
+                <p className="text-slate-400 text-[10px] uppercase font-bold tracking-widest">Calories In</p>
                 <h3 className={`text-3xl font-bold mt-1 ${todayCalories > dailyCalorieGoal ? 'text-red-500' : 'text-blue-500'}`}>{todayCalories}</h3>
               </div>
               <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
-                 <p className="text-slate-400 text-[10px] uppercase font-bold tracking-widest">Protein</p>
-                 <h3 className="text-3xl font-bold text-amber-500 mt-1">{todayProtein}<span className="text-sm ml-1">g</span></h3>
+                 <p className="text-slate-400 text-[10px] uppercase font-bold tracking-widest">Calories Out</p>
+                 <h3 className="text-3xl font-bold text-orange-500 mt-1">{todayBurned}</h3>
               </div>
               <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
                 <p className="text-slate-400 text-[10px] uppercase font-bold tracking-widest">Daily Goal</p>
@@ -618,7 +729,6 @@ export default function App() {
                 </div>
               </div>
             </div>
-            <button onClick={() => setActiveTab('tracker')} className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 transform active:scale-[0.99] transition-all"><Save size={20} /> LOG WEIGHT & HABITS</button>
           </div>
         )}
 
@@ -696,6 +806,124 @@ export default function App() {
             </div>
           </div>
         )}
+        
+        {/* --- ACTIVITY VIEW (NEW) --- */}
+        {activeTab === 'activity' && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+             
+             {/* GOOGLE FIT SYNC CARD */}
+             <div className={`p-6 rounded-xl border flex justify-between items-center shadow-sm transition-all ${isGoogleFitConnected ? 'bg-indigo-900/20 border-indigo-500/50' : 'bg-slate-900 border-slate-800'}`}>
+                <div>
+                   <p className="text-indigo-300 text-xs font-bold uppercase tracking-wider mb-1 flex items-center gap-2">
+                     <Smartphone size={14}/> Google Fit
+                   </p>
+                   {isGoogleFitConnected ? (
+                     <div className="flex items-baseline gap-2">
+                        <h2 className="text-4xl font-bold text-white">{steps.toLocaleString()}</h2>
+                        <span className="text-sm text-slate-400 font-medium">steps today</span>
+                     </div>
+                   ) : (
+                     <div>
+                       <h2 className="text-lg font-bold text-white">Sync Activity</h2>
+                       <p className="text-xs text-slate-500">Track real steps & calories.</p>
+                     </div>
+                   )}
+                </div>
+                <button 
+                  onClick={handleGoogleConnect}
+                  disabled={isGoogleFitConnected}
+                  className={`p-3 rounded-full flex items-center justify-center transition-all ${isGoogleFitConnected ? 'bg-indigo-500 text-white' : 'bg-slate-800 text-indigo-400 hover:bg-slate-700'}`}
+                >
+                   {isGoogleFitConnected ? <CheckCircle size={24} /> : <Footprints size={24} />}
+                </button>
+             </div>
+
+             {/* Total Burned Card */}
+             <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 flex justify-between items-center shadow-sm">
+                <div>
+                   <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Total Burned (Est)</p>
+                   <h2 className="text-4xl font-bold text-orange-500">{todayBurned + Math.round(steps * 0.04)}<span className="text-sm text-slate-500 ml-2 font-medium">kcal</span></h2>
+                   <p className="text-[10px] text-slate-600 mt-1">Activities + Steps</p>
+                </div>
+                <div className="bg-orange-500/10 p-3 rounded-full">
+                   <Flame size={32} className="text-orange-500" />
+                </div>
+             </div>
+
+             {/* Activity Input */}
+             <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 shadow-sm">
+               <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
+                 <Dumbbell size={20} className="text-emerald-500"/> Manual Log
+               </h3>
+               <div className="space-y-4">
+                 <div>
+                   <label className="block text-slate-400 text-xs font-bold uppercase mb-1">Activity Name</label>
+                   <div className="relative">
+                     <Move className="absolute left-3 top-3 text-slate-500" size={18} />
+                     <input 
+                       placeholder="e.g. Running, Cycling, Yoga" 
+                       className="w-full bg-slate-950 rounded-lg py-3 pl-10 pr-4 text-white border border-slate-700 focus:border-emerald-500 outline-none"
+                       value={newActivity.description}
+                       onChange={(e) => setNewActivity({...newActivity, description: e.target.value})}
+                     />
+                   </div>
+                 </div>
+                 <div>
+                   <label className="block text-slate-400 text-xs font-bold uppercase mb-1">Duration (Minutes)</label>
+                   <div className="relative">
+                     <Timer className="absolute left-3 top-3 text-slate-500" size={18} />
+                     <input 
+                       type="number"
+                       placeholder="30" 
+                       className="w-full bg-slate-950 rounded-lg py-3 pl-10 pr-4 text-white border border-slate-700 focus:border-emerald-500 outline-none"
+                       value={newActivity.duration}
+                       onChange={(e) => setNewActivity({...newActivity, duration: e.target.value})}
+                     />
+                   </div>
+                 </div>
+                 <button 
+                    onClick={handleAiActivityAdd} 
+                    disabled={aiLoading || !newActivity.description || !newActivity.duration}
+                    className="w-full bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                 >
+                    {aiLoading ? <Loader2 className="animate-spin" size={20}/> : <PlusCircle size={20}/>}
+                    {aiLoading ? "Calculating..." : "Calculate & Add Activity"}
+                 </button>
+                 <p className="text-xs text-center text-slate-500">
+                    <Sparkles size={12} className="inline mr-1 text-indigo-400"/>
+                    AI will calculate calories based on your current weight ({currentWeight}kg).
+                 </p>
+               </div>
+             </div>
+
+             {/* Activity List */}
+             <div className="space-y-2">
+               <h3 className="text-xs text-slate-500 font-bold uppercase pl-2">Today's Activities</h3>
+               {todayActivities.length === 0 ? (
+                 <div className="text-center py-10 bg-slate-900/50 rounded-xl border border-slate-800 border-dashed text-slate-500 text-sm">
+                    No manual activities logged.
+                 </div>
+               ) : (
+                 todayActivities.map((a) => (
+                   <div key={a.id} className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center animate-in fade-in">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-slate-800 p-2 rounded-lg">
+                          <Activity size={20} className="text-orange-400"/>
+                        </div>
+                        <div>
+                          <div className="text-sm font-bold text-white">{a.name}</div>
+                          <div className="text-xs text-slate-500 font-medium">~{a.calories} kcal burned</div>
+                        </div>
+                      </div>
+                      <button onClick={() => removeActivity(a.id)} className="text-slate-600 hover:text-red-500 p-2 transition-colors">
+                        <Trash2 size={16}/>
+                      </button>
+                   </div>
+                 ))
+               )}
+             </div>
+          </div>
+        )}
 
         {/* --- ANALYTICS VIEW --- */}
         {activeTab === 'analytics' && (
@@ -704,9 +932,23 @@ export default function App() {
               <h3 className="text-white font-bold text-sm mb-4 flex items-center gap-2"><TrendingDown size={16} className="text-emerald-500"/> Full Weight History</h3>
               <ResponsiveContainer width="100%" height="90%"><LineChart data={chartData}><CartesianGrid strokeDasharray="3 3" stroke="#334155" /><XAxis dataKey="date" stroke="#94a3b8" tickFormatter={d => d.slice(5)} fontSize={12}/><YAxis domain={['dataMin - 1', 'dataMax + 1']} stroke="#94a3b8" fontSize={12} width={30}/><Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#fff' }} /><ReferenceLine y={settings.goalWeight} stroke="gold" strokeDasharray="3 3" /><Line type="monotone" dataKey="actualWeight" stroke="#10b981" strokeWidth={3} dot={{r:4}} /><Line type="monotone" dataKey="idealWeight" stroke="#64748b" strokeDasharray="5 5" dot={false} /></LineChart></ResponsiveContainer>
             </div>
+            
+            {/* Calories Burned History */}
+             <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 h-64">
+              <h3 className="text-white font-bold text-sm mb-4 flex items-center gap-2"><Flame size={16} className="text-orange-500"/> Activity & Burn History</h3>
+              <ResponsiveContainer width="100%" height="90%">
+                <BarChart data={chartData.filter(d => d.burned > 0 || d.actualWeight !== null)}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                  <XAxis dataKey="date" stroke="#94a3b8" tickFormatter={d => d.slice(8)} fontSize={12}/>
+                  <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#fff' }} />
+                  <Bar dataKey="burned" name="Calories Burned" fill="#f97316" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
             <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 h-64">
-              <h3 className="text-white font-bold text-sm mb-4 flex items-center gap-2"><Flame size={16} className="text-orange-500"/> Calorie History</h3>
-              <ResponsiveContainer width="100%" height="90%"><BarChart data={chartData.filter(d => d.actualWeight !== null)}><CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} /><XAxis dataKey="date" stroke="#94a3b8" tickFormatter={d => d.slice(8)} fontSize={12}/><Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#fff' }} /><ReferenceLine y={dailyCalorieGoal} stroke="orange" strokeDasharray="3 3"/><Bar dataKey="calories" fill="#f59e0b" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer>
+              <h3 className="text-white font-bold text-sm mb-4 flex items-center gap-2"><UtensilsCrossed size={16} className="text-emerald-500"/> Calorie Intake History</h3>
+              <ResponsiveContainer width="100%" height="90%"><BarChart data={chartData.filter(d => d.actualWeight !== null)}><CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} /><XAxis dataKey="date" stroke="#94a3b8" tickFormatter={d => d.slice(8)} fontSize={12}/><Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#fff' }} /><ReferenceLine y={dailyCalorieGoal} stroke="orange" strokeDasharray="3 3"/><Bar dataKey="calories" fill="#10b981" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer>
             </div>
             <button onClick={() => { if(confirm("Clear local cache?")) window.location.reload(); }} className="w-full py-3 text-slate-500 hover:text-white text-sm font-medium border border-slate-800 rounded-lg hover:bg-slate-800 transition-colors">Refresh App</button>
           </div>
@@ -767,6 +1009,7 @@ export default function App() {
         <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center transition-colors ${activeTab === 'dashboard' ? 'text-emerald-500' : 'text-slate-500'}`}><Activity size={20} /><span className="text-[10px] mt-1 font-medium">Dash</span></button>
         <button onClick={() => setActiveTab('tracker')} className={`flex flex-col items-center transition-colors ${activeTab === 'tracker' ? 'text-emerald-500' : 'text-slate-500'}`}><Calendar size={20} /><span className="text-[10px] mt-1 font-medium">Log</span></button>
         <button onClick={() => setActiveTab('food')} className={`flex flex-col items-center transition-colors ${activeTab === 'food' ? 'text-emerald-500' : 'text-slate-500'}`}><UtensilsCrossed size={20} /><span className="text-[10px] mt-1 font-medium">Food</span></button>
+        <button onClick={() => setActiveTab('activity')} className={`flex flex-col items-center transition-colors ${activeTab === 'activity' ? 'text-emerald-500' : 'text-slate-500'}`}><Dumbbell size={20} /><span className="text-[10px] mt-1 font-medium">Move</span></button>
         <button onClick={() => setActiveTab('settings')} className={`flex flex-col items-center transition-colors ${activeTab === 'settings' ? 'text-emerald-500' : 'text-slate-500'}`}><Settings size={20} /><span className="text-[10px] mt-1 font-medium">Config</span></button>
       </nav>
     </div>
