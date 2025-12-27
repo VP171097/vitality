@@ -997,7 +997,7 @@ export default function App() {
                 <p className="text-slate-400 text-sm leading-relaxed max-w-sm">+91-9990091677</p>
               </div>
               <div>
-                <h3 className="text-white font-bold text-lg mb-2 flex items-center gap-2"><MailIcon className="text-emerald-500" size={20}/> Mail {APP_NAME}</h3>
+                <h3 className="text-white font-bold text-lg mb-2 flex items-center gap-2"><Mail className="text-emerald-500" size={20}/> Mail {APP_NAME}</h3>
                 <p className="text-slate-400 text-sm leading-relaxed max-w-sm">pandey.vivek7011@gmail.com</p>
               </div>
               <div className="flex flex-col md:items-end text-slate-500 text-sm"><p className="mb-1">© 2025 {APP_NAME} Project</p><p>Built by Vivek Pandey</p></div>
