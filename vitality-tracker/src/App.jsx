@@ -7,8 +7,7 @@ import {
   Activity, Droplets, Calendar, Save, TrendingDown, 
   Award, Zap, UtensilsCrossed, CheckCircle, PlusCircle, Flame, Target, Trash2, 
   Sparkles, MessageSquare, Loader2, Info, Heart, Settings, User, LogOut, Lock, Mail,
-  Dumbbell, Timer, Move, Footprints, Smartphone,
-  SmartphoneIcon
+  Dumbbell, Timer, Move, Footprints, Smartphone
 } from 'lucide-react';
 import { initializeApp } from "firebase/app";
 import { 
@@ -83,7 +82,7 @@ async function callGemini(prompt, systemInstruction = "") {
   }
 }
 
-// --- AUTH COMPONENT (Commented out usage below) ---
+// --- AUTH COMPONENT ---
 function AuthScreen({ onLogin }) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
@@ -201,9 +200,9 @@ function AuthScreen({ onLogin }) {
 
 // --- MAIN APP COMPONENT ---
 export default function App() {
-  // --- TESTING MODE: HARDCODED USER ---
-  const [user, setUser] = useState({ uid: 'test-user', displayName: 'Test User' });
-  const [authLoading, setAuthLoading] = useState(false);
+  // --- REAL USER AUTHENTICATION ---
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   
   const [activeTab, setActiveTab] = useState('dashboard');
   const [notification, setNotification] = useState(null);
@@ -254,8 +253,7 @@ export default function App() {
     }
   }, []);
 
-  // --- AUTH LISTENER (DISABLED FOR TESTING) ---
-  /*
+  // --- AUTH LISTENER ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -263,33 +261,65 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
-  */
 
-  // --- DATA SYNC (LOCAL STORAGE MODE FOR TESTING) ---
+  // --- DATA SYNC (FIRESTORE) ---
   useEffect(() => {
     if (!user) return;
     setDataLoading(true);
 
-    const savedSettings = localStorage.getItem('vitality_settings');
-    if (savedSettings) setSettings(JSON.parse(savedSettings));
+    const settingsRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'config');
+    const logsRef = doc(db, 'artifacts', appId, 'users', user.uid, 'logs', 'history');
+    const foodRef = doc(db, 'artifacts', appId, 'users', user.uid, 'food', 'history');
+    const activityRef = doc(db, 'artifacts', appId, 'users', user.uid, 'activity', 'history');
 
-    const savedLogs = localStorage.getItem('jan20_fitness_logs');
-    if (savedLogs) setLogs(JSON.parse(savedLogs));
+    // 1. Settings
+    const settingsUnsub = onSnapshot(settingsRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setSettings(docSnap.data());
+      } else {
+        const newDefaults = { ...DEFAULT_SETTINGS, name: user.displayName || "New User" };
+        setDoc(settingsRef, newDefaults);
+        setSettings(newDefaults);
+      }
+    });
 
-    const savedFood = localStorage.getItem('jan20_food_logs');
-    if (savedFood) setFoodLogs(JSON.parse(savedFood));
+    // 2. Logs
+    const logsUnsub = onSnapshot(logsRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setLogs(docSnap.data().data || []);
+      } else {
+        setDoc(logsRef, { data: [] });
+        setLogs([]);
+      }
+    });
 
-    const savedActivity = localStorage.getItem('jan20_activity_logs');
-    if (savedActivity) setActivityLogs(JSON.parse(savedActivity));
+    // 3. Food
+    const foodUnsub = onSnapshot(foodRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setFoodLogs(docSnap.data().data || {});
+      } else {
+        setDoc(foodRef, { data: {} });
+        setFoodLogs({});
+      }
+    });
 
-    // Google Fit Mock Data for demo if no connection
-    const savedSteps = localStorage.getItem('vitality_steps');
-    if (savedSteps) {
-      setSteps(parseInt(savedSteps));
-      setIsGoogleFitConnected(true);
-    }
+    // 4. Activity
+    const activityUnsub = onSnapshot(activityRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setActivityLogs(docSnap.data().data || {});
+      } else {
+        setDoc(activityRef, { data: {} });
+        setActivityLogs({});
+      }
+      setDataLoading(false);
+    });
 
-    setDataLoading(false);
+    return () => {
+      settingsUnsub();
+      logsUnsub();
+      foodUnsub();
+      activityUnsub();
+    };
   }, [user]);
 
   // --- LOCAL STATE UPDATE FOR TODAY ---
@@ -312,21 +342,25 @@ export default function App() {
   }, [logs, settings.startWeight]);
 
 
-  // --- DATA HELPERS (LOCAL STORAGE MODE) ---
+  // --- DATA HELPERS (FIRESTORE) ---
   const saveLogsToFirestore = async (newLogs) => {
-    localStorage.setItem('jan20_fitness_logs', JSON.stringify(newLogs));
+    if (!user) return;
+    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'logs', 'history'), { data: newLogs }, { merge: true });
   };
 
   const saveFoodToFirestore = async (newFoodLogs) => {
-    localStorage.setItem('jan20_food_logs', JSON.stringify(newFoodLogs));
+    if (!user) return;
+    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'food', 'history'), { data: newFoodLogs }, { merge: true });
   };
   
   const saveActivityToFirestore = async (newActivityLogs) => {
-    localStorage.setItem('jan20_activity_logs', JSON.stringify(newActivityLogs));
+    if (!user) return;
+    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'activity', 'history'), { data: newActivityLogs }, { merge: true });
   };
 
   const saveSettingsToFirestore = async (newSettings) => {
-    localStorage.setItem('vitality_settings', JSON.stringify(newSettings));
+    if (!user) return;
+    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'config'), newSettings, { merge: true });
   };
 
 
@@ -414,16 +448,13 @@ export default function App() {
 
   // --- GOOGLE FIT INTEGRATION HANDLERS ---
   const handleGoogleConnect = () => {
-    // NOTE: This usually requires a Google Client ID and specific origin setup.
-    // For this DEMO/TESTING environment, we will SIMULATE a connection.
     if (typeof google === 'undefined') {
       showNotification("Google API not loaded yet. Wait a moment.");
       return;
     }
-
     try {
       const client = google.accounts.oauth2.initTokenClient({
-        client_id: import.meta.env.YOUR_GOOGLE_CLIENT_ID, // User must replace this in production
+        client_id: import.meta.env.YOUR_GOOGLE_CLIENT_ID, // Replace with valid client ID in production
         scope: 'https://www.googleapis.com/auth/fitness.activity.read',
         callback: (tokenResponse) => {
           if (tokenResponse && tokenResponse.access_token) {
@@ -432,60 +463,48 @@ export default function App() {
           }
         },
       });
-      // In production you would call: client.requestAccessToken();
-      
-      // MOCK FOR DEMO:
+      // Mock for testing
       console.log("Simulating Google Fit Connection...");
       setIsGoogleFitConnected(true);
       const mockSteps = Math.floor(Math.random() * 5000) + 3000;
       setSteps(mockSteps);
-      localStorage.setItem('vitality_steps', mockSteps.toString());
-      showNotification("Connected to Google Fit!");
-      
+      showNotification("Connected to Google Fit (Simulated)");
     } catch (e) {
-      console.warn("Google Auth Error (Expected in demo without valid Client ID):", e);
-      // Fallback Mock
+      console.warn("Google Auth Error:", e);
       setIsGoogleFitConnected(true);
-      const mockSteps = Math.floor(Math.random() * 5000) + 3000;
-      setSteps(mockSteps);
+      setSteps(4500);
       showNotification("Simulated Google Fit Connection");
     }
   };
 
   const fetchFitData = async (accessToken) => {
-    // This is the logic you would use with a real token
+    // Logic for fetching real data
     const end = new Date().getTime();
     const start = new Date().setHours(0,0,0,0);
-    
     try {
       const response = await fetch("https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate", {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Content-Type": "application/json"
-        },
+        headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          "aggregateBy": [{
-            "dataTypeName": "com.google.step_count.delta",
-            "dataSourceId": "derived:com.google.step_count.delta:com.google.android.gms:estimated_steps"
-          }],
+          "aggregateBy": [{ "dataTypeName": "com.google.step_count.delta", "dataSourceId": "derived:com.google.step_count.delta:com.google.android.gms:estimated_steps" }],
           "bucketByTime": { "durationMillis": 86400000 },
           "startTimeMillis": start,
           "endTimeMillis": end
         })
       });
       const data = await response.json();
-      // Parse steps from data...
       console.log("Google Fit Data:", data);
-    } catch (e) {
-      console.error("Error fetching Google Fit data", e);
-    }
+    } catch (e) { console.error("Error fetching Google Fit data", e); }
   };
 
   const handleSignOut = async () => {
-     if(confirm("This will clear local test data. Continue?")) {
-        localStorage.clear();
-        window.location.reload();
+     try {
+       await signOut(auth);
+       setLogs([]);
+       setFoodLogs({});
+       setActivityLogs({});
+     } catch (e) {
+       console.error("Sign out error", e);
      }
   };
 
@@ -566,7 +585,7 @@ export default function App() {
         todayCals: todayCalories,
         todayBurned: todayBurned,
         targetCals: dailyCalorieGoal,
-        steps: steps // Pass steps to Coach Gemini
+        steps: steps
       };
       const prompt = `User Stats: ${JSON.stringify(stats)}. User Goal: Lose weight by ${settings.endDate} (Target ${settings.goalWeight}kg). Current Dynamic Calorie Goal: ${dailyCalorieGoal}`;
       const systemPrompt = `You are Coach Gemini. Analyze JSON data. Provide JSON object with one field "message" containing short, punchy advice (max 2 sentences).`;
@@ -808,7 +827,7 @@ export default function App() {
           </div>
         )}
         
-        {/* --- ACTIVITY VIEW (NEW) --- */}
+        {/* --- ACTIVITY VIEW --- */}
         {activeTab === 'activity' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
              
