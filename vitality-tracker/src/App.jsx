@@ -454,9 +454,9 @@ export default function App() {
     }
 
     // Check if Client ID is configured
-    const CLIENT_ID = import.meta.env.YOUR_GOOGLE_CLIENT_ID; // Replace with valid client ID in production or use import.meta.env.VITE_GOOGLE_CLIENT_ID
+    const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-    if (CLIENT_ID === import.meta.env.YOUR_GOOGLE_CLIENT_ID) {
+    if (!CLIENT_ID || CLIENT_ID === 'your_google_client_id_here') {
       // If no valid ID is present, ask user if they want to simulate or warn them
       if (confirm("Google Client ID is missing in code. Do you want to simulate a connection with mock data?")) {
         console.log("Simulating Google Fit Connection...");
