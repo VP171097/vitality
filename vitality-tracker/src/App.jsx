@@ -55,7 +55,7 @@ const getToday = () => new Date().toLocaleDateString('en-CA');
 
 // --- GEMINI API HELPER ---
 async function callGemini(prompt, systemInstruction = "") {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=' + apiKey;
   const payload = {
     contents: [{ parts: [{ text: prompt }] }],
     systemInstruction: { parts: [{ text: systemInstruction }] },
@@ -456,7 +456,7 @@ export default function App() {
     // Check if Client ID is configured
     const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-    if (!CLIENT_ID || CLIENT_ID === '128967206136-00k340iuv0c1fuah3bqbke8ukf19isoj.apps.googleusercontent.com') {}
+    if (!CLIENT_ID || CLIENT_ID === '128967206136-00k340iuv0c1fuah3bqbke8ukf19isoj.apps.googleusercontent.com') {
       // If no valid ID is present, ask user if they want to simulate or warn them
       if (confirm("Google Client ID is missing in code. Do you want to simulate a connection with mock data?")) {
         console.log("Simulating Google Fit Connection...");
