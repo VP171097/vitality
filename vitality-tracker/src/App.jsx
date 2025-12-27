@@ -7,7 +7,8 @@ import {
   Activity, Droplets, Calendar, Save, TrendingDown, 
   Award, Zap, UtensilsCrossed, CheckCircle, PlusCircle, Flame, Target, Trash2, 
   Sparkles, MessageSquare, Loader2, Info, Heart, Settings, User, LogOut, Lock, Mail,
-  Dumbbell, Timer, Move, Footprints, Smartphone
+  Dumbbell, Timer, Move, Footprints, Smartphone,
+  SmartphoneIcon
 } from 'lucide-react';
 import { initializeApp } from "firebase/app";
 import { 
@@ -992,7 +993,7 @@ export default function App() {
                 <p className="text-slate-400 text-sm leading-relaxed max-w-sm">The all-in-one AI fitness companion. Track meals, log workouts, and get intelligent coaching insights.</p>
               </div>
               <div>
-                <h3 className="text-white font-bold text-lg mb-2 flex items-center gap-2"><Phone className="text-emerald-500" size={20}/> Contact {APP_NAME}</h3>
+                <h3 className="text-white font-bold text-lg mb-2 flex items-center gap-2"><SmartphoneIcon className="text-emerald-500" size={20}/> Contact {APP_NAME}</h3>
                 <p className="text-slate-400 text-sm leading-relaxed max-w-sm">+91-9990091677</p>
               </div>
               <div>
